@@ -3,8 +3,17 @@
 custom interactive python interpreter.
 """
 
+# pylint: disable=fixme
 # pylint: disable=unused-import
+# pylint: disable=ungrouped-imports
+# pylint: disable=wrong-import-order
+# pylint: disable=wrong-import-position
 # pylint: disable=unused-wildcard-import
+
+# TODO:
+#
+#   - include parameter and return type arguments in 'about()'
+#
 
 # required imports
 #
@@ -18,56 +27,83 @@ import pathlib
 import readline
 import rlcompleter
 
-# preloaded imports
+from cloudshell.terminal import formatting as fmt
+
+# import aliases
+aws = None
+awscore = None
+
+# aliased imports
 #
-import boto3 as aws
-import botocore as awscore
+try:
+    import boto3 as aws
+except ImportError:
+    print('failed to load the "boto3" module, the alias "aws" will not be available')
+
+try:
+    import botocore as awscore
+except ImportError:
+    print('failed to load the "botocore" module, the alias "awscore" will not be available')
 
 from cloudshell.functions.bash import *
 from cloudshell.functions.clock import *
-from cloudshell.terminal.formatting import *
-
-from cloudshell.terminal import formatting as fmt
+from cloudshell.functions.conversion import *
+from cloudshell.functions.filesystem import *
 
 # session constants
 #
 SESSION_HIST_FILE = pathlib.Path('~/.cloud-shell.hist').expanduser()
 
+# session globals
+#
+ABOUT_CACHE = {
+    'funcs': None
+}
+
 # session builtins
 #
 def about() -> None:
-    """
-    print detailed information about the custom shell environment.
-    """
+    """print detailed information about the custom shell environment."""
 
     indentation = '            '
 
-    funcs = [
-        f'{cyan(f"{n}")}\n' for n in fmt.__all__
-    ]
+    if ABOUT_CACHE['funcs'] is None:
+        from cloudshell.functions import definitions
+
+        ABOUT_CACHE['funcs'] = [
+            f'{fmt.cyan(f"{n}")}\n' for n in definitions.__all__
+        ]
+
+        ABOUT_CACHE['funcs'].sort(key=lambda name: len(name))
+
+    # pylint: disable=not-an-iterable
 
     msg = inspect.cleandoc(f'''\
         =========================================
-        *** {white("cloud-shell")} ***
+        *** {fmt.white("cloud-shell")} ***
 
         interactive shell for the cloud.
 
         aliases:
 
-            {cyan("aws")}     == {cyan("boto3")}
-            {cyan("awscore")} == {cyan("botocore")}
+            {fmt.cyan("aws")}     == {fmt.cyan("boto3")}
+            {fmt.cyan("awscore")} == {fmt.cyan("botocore")}
 
         functions:
 
-            {f"{indentation}".join([f for f in funcs])}
+            {f"{indentation}".join([f for f in ABOUT_CACHE["funcs"]])}
         ======================================
     ''')
+
+    # pylint: enable=not-an-iterable
 
     print(msg)
 
 # session state
 #
 def session_load_history(hist_file: pathlib.Path) -> int:
+    """utility function, loads sessions history into the current session."""
+
     line_count = 0
 
     try:
@@ -81,23 +117,23 @@ def session_load_history(hist_file: pathlib.Path) -> int:
     return line_count
 
 def session_store_history(hist_file: pathlib.Path, last_history_size: int, max_history_size: int = 1000) -> None:
+    """utility function, appends the current sessions history to existing history."""
+
     num_lines = readline.get_current_history_length() - last_history_size
 
     readline.set_history_length(max_history_size)
     readline.append_history_file(num_lines, str(hist_file))
 
 def session_on_enter(tab_completable_symbols: dict) -> None:
-    """
-    interactive shell entrypoint.
-    """
+    """interactive shell entrypoint."""
 
     banner = inspect.cleandoc(f'''\
         ========================================
-        *** {white("cloud-shell")} ***
+        *** {fmt.white("cloud-shell")} ***
 
         interactive shell for the cloud.
 
-        run "{cyan("about()")}" for more information.
+        run "{fmt.cyan("about()")}" for more information.
 
         ======================================
     ''')
